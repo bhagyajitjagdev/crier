@@ -15,6 +15,7 @@ acked and parked on crier:dlq, where the UI can inspect and resend them.
 import asyncio
 import json
 import logging
+import time
 from datetime import datetime, timezone
 
 import redis.asyncio as aioredis
@@ -36,6 +37,7 @@ logger = logging.getLogger("crier.consumer")
 
 CONSUMER_NAME = "crier-1"
 CLAIM_IDLE_MS = 60_000
+TRIM_INTERVAL_S = 60
 
 
 class Consumer:
@@ -43,6 +45,7 @@ class Consumer:
         self.redis = aioredis.from_url(settings.redis_url, decode_responses=True)
         self.last_beat: datetime | None = None
         self._task: asyncio.Task | None = None
+        self._last_trim = 0.0
 
     def start(self) -> None:
         self._task = asyncio.create_task(self._run(), name="crier-consumer")
@@ -63,6 +66,7 @@ class Consumer:
                 while True:
                     self.last_beat = datetime.now(timezone.utc)
                     await self._claim_stale()
+                    await self._trim()
                     resp = await self.redis.xreadgroup(
                         CONSUMER_GROUP,
                         CONSUMER_NAME,
@@ -99,6 +103,33 @@ class Consumer:
         )
         for entry_id, fields in entries:
             await self._process(entry_id, fields)
+
+    async def _trim(self) -> None:
+        """XACK never removes entries, so the stream would grow for the life
+        of the deployment. Trim by MINID derived from consumption progress —
+        never MAXLEN, which drops unconsumed entries when producers burst.
+        The oldest PENDING entry must survive the trim: it is the delivered-
+        but-unacked state XAUTOCLAIM replays after a crash. Assumes Crier's
+        group is the stream's only consumer group.
+        """
+        now = time.monotonic()
+        if now - self._last_trim < TRIM_INTERVAL_S:
+            return
+        self._last_trim = now
+        pending = await self.redis.xpending(EVENTS_STREAM, CONSUMER_GROUP)
+        if pending and pending.get("pending", 0) > 0 and pending.get("min"):
+            min_id = pending["min"]
+        else:
+            groups = await self.redis.xinfo_groups(EVENTS_STREAM)
+            ours = next(
+                (g for g in groups if g["name"] == CONSUMER_GROUP), None
+            )
+            if ours is None:
+                return
+            min_id = ours["last-delivered-id"]
+        # Exact trim: at transactional-email volume the cost is trivial, and
+        # approximate (~) trimming never fires on small streams at all.
+        await self.redis.xtrim(EVENTS_STREAM, minid=min_id, approximate=False)
 
     async def _ack(self, entry_id: str) -> None:
         await self.redis.xack(EVENTS_STREAM, CONSUMER_GROUP, entry_id)

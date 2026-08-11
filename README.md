@@ -51,6 +51,16 @@ One stream entry per email, a single `data` field holding JSON:
 
 Streams: `crier:events` (consumer group `crier`), `crier:dlq` (parked events).
 
+Crier trims `crier:events` about once a minute, by MINID derived from its own
+consumption progress — consumed entries are removed, unconsumed backlog and
+in-flight (unacked) entries are never touched. Steady-state memory is the
+unconsumed backlog. If Crier is down, the stream grows until it returns:
+that's the durability guarantee. Producers who'd rather drop events than
+grow a shared Redis while Crier is offline can add their own `MAXLEN ~` cap
+to the XADD — at exactly that cost. Attaching other consumer groups to
+`crier:events` is unsupported, since the trim would remove entries they
+haven't read.
+
 ## Development
 
 ```sh

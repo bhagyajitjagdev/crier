@@ -51,12 +51,10 @@ async def _pop_entry(entry_id: str) -> dict:
 
 @router.post("/api/dlq/{entry_id}/resend")
 async def resend(entry_id: str):
-    """Put the event back on the main stream and drop it from the DLQ."""
+    """Put the event back on the main stream and drop it from the DLQ.
+    No MAXLEN here — the consumer trims the stream by consumption progress."""
     fields = await _pop_entry(entry_id)
-    await consumer.redis.xadd(
-        EVENTS_STREAM, {"data": fields.get("data", "")}, maxlen=DLQ_MAXLEN * 10,
-        approximate=True,
-    )
+    await consumer.redis.xadd(EVENTS_STREAM, {"data": fields.get("data", "")})
     await consumer.redis.xdel(DLQ_STREAM, entry_id)
     return {"ok": True}
 
