@@ -1,0 +1,33 @@
+# Local trial stack. During development Crier runs from source (backend:
+# `uv run fastapi dev`, frontend: `npm run dev`) against these services;
+# the `crier` service is the packaged single-container build.
+services:
+  crier:
+    build: .
+    ports:
+      - '8000:8000'
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./data:/data
+    depends_on:
+      - redis
+      - mailpit
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    # 6380 on the host so a dev redis already sitting on 6379 doesn't collide.
+    ports:
+      - '6380:6379'
+    volumes:
+      - redis-data:/data
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - '1025:1025' # SMTP
+      - '8025:8025' # UI
+
+volumes:
+  redis-data:
