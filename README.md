@@ -92,6 +92,16 @@ data/
 
 The data directory is safe to keep in git for template history.
 
+## Operational notes
+
+Crier is a **single-instance** service by design: one consumer (a fixed
+consumer name) on the stream, one process per data directory. Run exactly one
+replica — a second one would fight over pending entries and the file store.
+`/health` reports `degraded` whenever Redis is unreachable or the consumer
+loop stalls, and the container healthcheck fails on it. When auth is enabled,
+set `SESSION_SECRET` to survive restarts — unset, it is random per boot and
+signs everyone out.
+
 ## Deploying
 
 `deploy/` has a production example: Crier behind Caddy with automatic TLS and

@@ -42,7 +42,13 @@ TRIM_INTERVAL_S = 60
 
 class Consumer:
     def __init__(self):
-        self.redis = aioredis.from_url(settings.redis_url, decode_responses=True)
+        # socket_timeout must comfortably exceed the XREADGROUP block: the
+        # server's empty reply lands one RTT after the block expires, so a
+        # deadline equal to the block turns every idle poll over a real
+        # network into a TimeoutError and a needless reconnect.
+        self.redis = aioredis.from_url(
+            settings.redis_url, decode_responses=True, socket_timeout=30
+        )
         self.last_beat: datetime | None = None
         self._task: asyncio.Task | None = None
         self._last_trim = 0.0
