@@ -1,0 +1,18 @@
+.DS_Store
+*.log
+
+# Runtime state — templates, config, and logs live on the data volume
+data/
+.env
+deploy/data/
+deploy/.env
+
+# Build artifact: the SPA bundle FastAPI serves in the container
+backend/static/
+
+__pycache__/
+*.pyc
+.venv/
+
+node_modules/
+dist/
