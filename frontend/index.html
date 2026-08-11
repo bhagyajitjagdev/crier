@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Crier</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Pre-paint theme: runs before first paint so there is never a flash
+         of the wrong theme. Key must match theme-provider.tsx. -->
+    <script>
+      ;(function () {
+        try {
+          var t = localStorage.getItem("crier-theme") || "system"
+          var d =
+            t === "dark" ||
+            (t === "system" &&
+              window.matchMedia("(prefers-color-scheme:dark)").matches)
+          document.documentElement.classList.add(d ? "dark" : "light")
+        } catch (e) {}
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
