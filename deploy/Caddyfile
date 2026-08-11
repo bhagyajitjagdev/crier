@@ -1,0 +1,17 @@
+# Set CRIER_DOMAIN in .env. Caddy provisions and renews the certificate.
+{$CRIER_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+
+		# Clickjacking is the live risk for a cookie-authenticated admin UI.
+		Content-Security-Policy "frame-ancestors 'none'"
+
+		-Server
+	}
+
+	reverse_proxy crier:8000
+}

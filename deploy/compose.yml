@@ -1,0 +1,51 @@
+# Production example: Crier behind Caddy with TLS. Copy this folder to the
+# server, create a .env with CRIER_DOMAIN (and AUTH_USERNAME/AUTH_PASSWORD —
+# a public deployment must not run open), then `docker compose up -d`.
+#
+# The bundled Redis is for a self-contained setup. If your platform already
+# runs Redis (your producers must reach the same instance Crier consumes
+# from), drop the service and point REDIS_URL at it instead.
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp' # HTTP/3
+    environment:
+      CRIER_DOMAIN: ${CRIER_DOMAIN:?set CRIER_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - crier
+
+  crier:
+    image: ghcr.io/bhagyajitjagdev/crier:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      # Caddy terminates TLS in front, so the session cookie can be Secure.
+      SESSION_SECURE: 'true'
+    volumes:
+      - ./data:/data
+    # Deliberately not published to the host — reachable only through Caddy.
+    expose:
+      - '8000'
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+
+volumes:
+  caddy-data:
+  caddy-config:
+  redis-data:

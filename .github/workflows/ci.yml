@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      # Build first — it regenerates the route tree the typecheck depends on,
+      # so a stale commit of it fails here.
+      - run: npm run build
+      - run: npm run typecheck
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+
+      - run: uv sync --frozen
+      # Importing the app runs config validation, bootstraps a data
+      # directory, and mounts every router.
+      - run: uv run python -c "from main import app; print(len(app.routes), 'routes mounted')"
+
+  # Build-only: catches Dockerfile breakage on PRs instead of at release
+  # time, and warms the same layer cache the release workflow uses.
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
