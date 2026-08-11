@@ -52,5 +52,6 @@ jobs:
         with:
           context: .
           push: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Same scope as the release's amd64 leg so PR builds warm its cache.
+          cache-from: type=gha,scope=build-linux-amd64
+          cache-to: type=gha,mode=max,scope=build-linux-amd64
